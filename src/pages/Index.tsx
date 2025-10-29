@@ -3,11 +3,63 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/hooks/use-toast';
 import Icon from '@/components/ui/icon';
 
 const Index = () => {
+  const { toast } = useToast();
   const [onlinePlayers, setOnlinePlayers] = useState(127);
   const [timeToWipe, setTimeToWipe] = useState({ days: 3, hours: 12, minutes: 45, seconds: 30 });
+  const [mapMarkers] = useState([
+    { id: 1, x: 25, y: 30, type: 'monument', name: 'Большой радар', icon: '📡' },
+    { id: 2, x: 60, y: 20, type: 'monument', name: 'Электростанция', icon: '⚡' },
+    { id: 3, x: 40, y: 60, type: 'monument', name: 'Склад', icon: '🏭' },
+    { id: 4, x: 75, y: 70, type: 'base', name: 'База Player1', icon: '🏰' },
+    { id: 5, x: 15, y: 80, type: 'base', name: 'База ProGamer', icon: '🏰' },
+    { id: 6, x: 50, y: 45, type: 'event', name: 'PvP зона', icon: '⚔️' }
+  ]);
+  const [selectedMarker, setSelectedMarker] = useState<number | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleDonateClick = async (packageName: string, amount: number) => {
+    setIsProcessing(true);
+    
+    try {
+      const response = await fetch('https://functions.poehali.dev/e1e13194-4a10-42a3-a5e6-85c04554c44a', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          package: packageName,
+          amount: amount
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.demo) {
+        toast({
+          title: '💳 Демо-режим',
+          description: 'Платёжная система настроена! Добавь ключи ЮKassa для реальных платежей.',
+        });
+      } else if (data.payment_url) {
+        window.open(data.payment_url, '_blank');
+        toast({
+          title: '✅ Платёж создан',
+          description: 'Переходим на страницу оплаты...',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: '❌ Ошибка',
+        description: 'Не удалось создать платёж. Попробуй позже.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -61,6 +113,7 @@ const Index = () => {
             <button onClick={() => scrollToSection('rules')} className="hover:text-primary transition-colors">Правила</button>
             <button onClick={() => scrollToSection('donate')} className="hover:text-primary transition-colors">Донат</button>
             <button onClick={() => scrollToSection('wipes')} className="hover:text-primary transition-colors">Вайплоги</button>
+            <button onClick={() => scrollToSection('map')} className="hover:text-primary transition-colors">Карта</button>
             <button onClick={() => scrollToSection('stats')} className="hover:text-primary transition-colors">Статистика</button>
           </div>
           <div className="flex items-center gap-3">
@@ -166,23 +219,33 @@ const Index = () => {
                 color: 'border-secondary',
                 features: ['Всё из Премиум', 'VIP статус', 'Уникальные команды', 'Безлимитные наборы', 'Эксклюзивные предметы']
               }
-            ].map((pack, i) => (
-              <Card key={i} className={`p-6 ${pack.color} border-2 hover:scale-105 transition-all`}>
-                <h3 className="text-2xl font-bold mb-2">{pack.name}</h3>
-                <div className="text-4xl font-black mb-4 text-primary">{pack.price}</div>
-                <ul className="space-y-2 mb-6">
-                  {pack.features.map((feature, j) => (
-                    <li key={j} className="flex items-start gap-2">
-                      <Icon name="Check" size={16} className="text-primary mt-1 flex-shrink-0" />
-                      <span className="text-sm">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Button className="w-full" variant={i === 1 ? 'default' : 'outline'}>
-                  Купить
-                </Button>
-              </Card>
-            ))}
+            ].map((pack, i) => {
+              const amounts = [299, 599, 1299];
+              const packageNames = ['starter', 'premium', 'legend'];
+              
+              return (
+                <Card key={i} className={`p-6 ${pack.color} border-2 hover:scale-105 transition-all`}>
+                  <h3 className="text-2xl font-bold mb-2">{pack.name}</h3>
+                  <div className="text-4xl font-black mb-4 text-primary">{pack.price}</div>
+                  <ul className="space-y-2 mb-6">
+                    {pack.features.map((feature, j) => (
+                      <li key={j} className="flex items-start gap-2">
+                        <Icon name="Check" size={16} className="text-primary mt-1 flex-shrink-0" />
+                        <span className="text-sm">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button 
+                    className="w-full" 
+                    variant={i === 1 ? 'default' : 'outline'}
+                    onClick={() => handleDonateClick(packageNames[i], amounts[i])}
+                    disabled={isProcessing}
+                  >
+                    {isProcessing ? 'Обработка...' : 'Купить'}
+                  </Button>
+                </Card>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -227,6 +290,54 @@ const Index = () => {
               ))}
             </TabsContent>
           </Tabs>
+        </div>
+      </section>
+
+      <section id="map" className="py-20 px-4 bg-muted/30">
+        <div className="container mx-auto max-w-6xl">
+          <h2 className="text-4xl font-bold mb-8 text-center">🗺️ Карта сервера</h2>
+          <Card className="p-6">
+            <div className="relative w-full aspect-square max-w-3xl mx-auto bg-cover bg-center rounded-lg overflow-hidden" 
+                 style={{ backgroundImage: 'url(https://cdn.poehali.dev/projects/ce820e75-153f-47a2-ba55-6f54bf2953f3/files/8a3fa760-ad99-4855-8f53-79005b9f9cab.jpg)' }}>
+              <div className="absolute inset-0 bg-black/20">
+                {mapMarkers.map((marker) => (
+                  <div
+                    key={marker.id}
+                    className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer group"
+                    style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
+                    onClick={() => setSelectedMarker(marker.id)}
+                    onMouseEnter={() => setSelectedMarker(marker.id)}
+                  >
+                    <div className="relative">
+                      <div className={`text-3xl transition-all duration-300 ${selectedMarker === marker.id ? 'scale-150 animate-float' : 'scale-100'}`}>
+                        {marker.icon}
+                      </div>
+                      {selectedMarker === marker.id && (
+                        <div className="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 bg-background/95 border border-primary rounded-lg px-3 py-2 whitespace-nowrap animate-fade-in z-10">
+                          <div className="text-sm font-semibold">{marker.name}</div>
+                          <div className="text-xs text-muted-foreground capitalize">{marker.type}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="mt-6 flex flex-wrap gap-4 justify-center">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">📡</span>
+                <span className="text-sm text-muted-foreground">Монументы</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🏰</span>
+                <span className="text-sm text-muted-foreground">Базы игроков</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">⚔️</span>
+                <span className="text-sm text-muted-foreground">PvP зоны</span>
+              </div>
+            </div>
+          </Card>
         </div>
       </section>
 
